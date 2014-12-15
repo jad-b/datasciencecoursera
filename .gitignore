@@ -1,0 +1,5 @@
+# Data files
+*.csv
+*.hdf5
+*.json
+*.tar.gz
