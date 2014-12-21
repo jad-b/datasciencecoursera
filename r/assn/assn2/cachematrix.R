@@ -8,6 +8,9 @@
 #
 # `cacheSolve` take the wrapped matrix object returned by `makeCacheMatrix` 
 # and uses the provided get/set interface to return the matrix's inverse.
+# 
+# To Test:
+#   `source('assn2_test.R')`
 
 makeCacheMatrix <- function(x = matrix()) {
   # Cache a matrix inversion within a list
