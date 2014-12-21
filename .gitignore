@@ -10,3 +10,4 @@
 
 # RStudio. Or something
 *.RData
+.Rproj.user
