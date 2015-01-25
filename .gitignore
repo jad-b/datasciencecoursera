@@ -7,6 +7,7 @@
 *.xml
 *.xlsx
 *.for
+*.pdf
 
 # RStudio. Or something
 *.RData

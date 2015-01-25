@@ -9,52 +9,63 @@
 # 3) Names the data set activities appropiately
 # 4) Labels the data set with variable names
 # 5) Creates a second, independent data set from #4 of the averages for each
+#
+# `tbl_df` used throughout the script to make debugging easier.
+
 #   activity and subject
+library(dplyr)
+library(tidyr)
+
+# Change to data directory
+setwd('UCI HAR Dataset/')
 
 # Load and training and test data
-features <- read.table('features.txt', col.names=c('id', 'feature'))
+# Load our variable/columns w/ int primary keys 
+features <- tbl_df(read.table('features.txt', col.names=c('id', 'feature')))
+# Load our activity types w/ int primary keys
 activity_labels <- read.table('activity_labels.txt',
                               col.names=c('id', 'activity'),
                               colClasses=c('integer', 'character'))
+# Categorize our activity types; Walking, Laying, etc.
 activities <- factor(activity_labels$activity)
 
-X_train <- read.table('train/X_train.txt', col.names=features$feature)
-X_test <- read.table('test/X_test.txt', col.names=features$feature)
+X_train <- tbl_df(read.table('train/X_train.txt', col.names=features$feature))
+X_test <- tbl_df(read.table('test/X_test.txt', col.names=features$feature))
 
 # Assign subjects and activity factors before merging
-subject_train <- read.table('train/subject_train.txt', col.names=c('subject'))
-subject_test <- read.table('test/subject_test.txt', col.names=c('subject'))
+subject_train <- tbl_df(read.table('train/subject_train.txt', col.names=c('subject')))
+subject_test <- tbl_df(read.table('test/subject_test.txt', col.names=c('subject')))
 X_train$subject <- subject_train$subject
 X_test$subject <- subject_test$subject
 
-y_train <- read.table('train/y_train.txt', col.names='activity')
-y_test <- read.table('test/y_test.txt', col.names='activity')
+y_train <- tbl_df(read.table('train/y_train.txt', col.names='activity'))
+y_test <- tbl_df(read.table('test/y_test.txt', col.names='activity'))
 levels(y_train$activity) <- activities
 levels(y_test$activity) <- activities
 X_train$activity <- factor(y_train$activity, labels=activity_labels$activity)
 X_test$activity <- factor(y_test$activity, labels=activity_labels$activity)
 
-# merge training & test data
-merged <- rbind(X_train, X_test)
+           # Merge training & test data
+meanstd <- (rbind_list(X_train, X_test) %>%
+           # Extract columns related to the mean and std dev
+           select(contains('mean'), contains('std'), 
+                  one_of(c('subject', 'activity'))) %>%
+           tbl_df
 
-# Extract columns related to the mean and std dev
-extract <- merged[,c(grep("mean|std", names(merged), value=T),
-                     'subject', 'activity')]
-
-# Improve variable names
-names(extract) <- gsub("^t", "Time", names(extract))
-names(extract) <- gsub("^f", "Frequency", names(extract))
-names(extract) <- gsub("BodyBody", "Body", names(extract))
-names(extract) <- gsub("-", ".", names(extract))
-names(extract) <- gsub("mean\\(\\)", "Mean", names(extract))
-names(extract) <- gsub("std\\(\\)", "StandardDeviation", names(extract))
+# Improve variable names via string substitution
+names(meanstd) <- gsub("-", ".", names(meanstd))
+names(meanstd) <- gsub("BodyBody", "Body", names(meanstd))
+names(meanstd) <- gsub("^f", "Frequency", names(meanstd))
+names(meanstd) <- gsub("^t", "Time", names(meanstd))
+names(meanstd) <- gsub("mean\\(\\)", "Mean", names(meanstd))
+names(meanstd) <- gsub("std\\(\\)", "StandardDeviation", names(meanstd))
 
 
 # Take the mean of each column, besides our appended subject & activity
 # Prepare
-activities <- levels(extract$activity)
-subjects <- unique(extract$subject)
-target_columns <- names(extract)[!(names(extract) %in% c('subject', 'activity'))]
+activities <- levels(meanstd$activity)
+subjects <- unique(meanstd$subject)
+target_columns <- names(meanstd)[!(names(meanstd) %in% c('subject', 'activity'))]
 # Prepare lengths
 activity_length <- length(activities)
 subject_length <- length(subjects)
@@ -65,8 +76,8 @@ arr <- array(NaN, c(activity_length, subject_length, targets_length))
 for(i in 1:activity_length){
   for(j in 1:subject_length){
     for(k in 1:targets_length) {
-      arr[i, j, k] <-  mean(extract[,target_columns[k]][extract$activity==activities[i] &
-                                                        extract$subject==subjects[j]])
+      arr[i, j, k] <-  mean(meanstd[,target_columns[k]][meanstd$activity==activities[i] &
+                                                        meanstd$subject==subjects[j]])
     }
   }
 }
