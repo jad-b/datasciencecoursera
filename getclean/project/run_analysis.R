@@ -9,82 +9,81 @@
 # 3) Names the data set activities appropiately
 # 4) Labels the data set with variable names
 # 5) Creates a second, independent data set from #4 of the averages for each
+# Notes:
+#   * `tbl_df` used throughout the script to make debugging easier.
+#   * Data sets are named and labeled before merging. Helps keep track
+#     of what data's what.
 #
-# `tbl_df` used throughout the script to make debugging easier.
-
-#   activity and subject
+library(data.table)
 library(dplyr)
 library(tidyr)
 
 # Change to data directory
 setwd('UCI HAR Dataset/')
 
-# Load and training and test data
-# Load our variable/columns w/ int primary keys 
-features <- tbl_df(read.table('features.txt', col.names=c('id', 'feature')))
-# Load our activity types w/ int primary keys
-activity_labels <- read.table('activity_labels.txt',
-                              col.names=c('id', 'activity'),
-                              colClasses=c('integer', 'character'))
-# Categorize our activity types; Walking, Laying, etc.
-activities <- factor(activity_labels$activity)
+# Load our variable/columns names
+features <- tbl_df(fread('features.txt', drop=1))
+setnames(features, 'feature')
 
-X_train <- tbl_df(read.table('train/X_train.txt', col.names=features$feature))
-X_test <- tbl_df(read.table('test/X_test.txt', col.names=features$feature))
+# Load our observational data
+X_data <- tbl_df(data.table(rbind(read.table('train/X_train.txt'),
+                            read.table('test/X_test.txt'))))
 
-# Assign subjects and activity factors before merging
-subject_train <- tbl_df(read.table('train/subject_train.txt', col.names=c('subject')))
-subject_test <- tbl_df(read.table('test/subject_test.txt', col.names=c('subject')))
-X_train$subject <- subject_train$subject
-X_test$subject <- subject_test$subject
+# Assign feature names
+setnames(X_data, features$feature)
+# Remove duplicate column entries; learning about *those* was fun
+unique_x <- X_data[, unique(colnames(X_data))] 
+# Extracts measurements on the mean and standard deviation
+meanstd <- select(unique_x, contains('mean()'), contains('std()'))
 
-y_train <- tbl_df(read.table('train/y_train.txt', col.names='activity'))
-y_test <- tbl_df(read.table('test/y_test.txt', col.names='activity'))
-levels(y_train$activity) <- activities
-levels(y_test$activity) <- activities
-X_train$activity <- factor(y_train$activity, labels=activity_labels$activity)
-X_test$activity <- factor(y_test$activity, labels=activity_labels$activity)
+# Load our activity types
+activities <- tbl_df(fread('activity_labels.txt',
+                           colClasses=c('integer', 'character'),
+                           stringsAsFactors=T,
+                           drop=1))    # Don't need row IDs as a column
+setnames(activities, 'Activity')
 
-           # Merge training & test data
-meanstd <- (rbind_list(X_train, X_test) %>%
-           # Extract columns related to the mean and std dev
-           select(contains('mean'), contains('std'), 
-                  one_of(c('subject', 'activity'))) %>%
-           tbl_df
+# Load activity data
+# Activity data is stored as vectors of the numeric value of the activity
+y_data <- data.table(c(scan('train/y_train.txt'), scan('test/y_test.txt')))
+setnames(y_data, 'Activity')
+# Replace the numeric values with activity category labels; WALKING, etc.
+y_data$Activity <- factor(y_data$Activity, labels=activities$Activity)
+
+# Subject data is a vector of subject IDs, one per observation row
+subjects <- data.table(c(scan('train/subject_train.txt'),
+                         scan('test/subject_test.txt')))
+setnames(subjects, 'Subject')
+
+# Merge the observations, activities, and subject IDs
+data <- cbind(meanstd, 
+              y_data,
+              subjects)
+
+# 33 mean() observations
+# 33 std() observations (according to grep)
+# 1 Subject column
+# 1 Activity column
+# --- Total is:
+# 68
+stopifnot(ncol(data) == 68)
+
 
 # Improve variable names via string substitution
-names(meanstd) <- gsub("-", ".", names(meanstd))
-names(meanstd) <- gsub("BodyBody", "Body", names(meanstd))
-names(meanstd) <- gsub("^f", "Frequency", names(meanstd))
-names(meanstd) <- gsub("^t", "Time", names(meanstd))
-names(meanstd) <- gsub("mean\\(\\)", "Mean", names(meanstd))
-names(meanstd) <- gsub("std\\(\\)", "StandardDeviation", names(meanstd))
+setnames(data, gsub("-", ".", colnames(data)))
+setnames(data, gsub("BodyBody", "Body", colnames(data)))
+setnames(data, gsub("^f", "Frequency", colnames(data)))
+setnames(data, gsub("^t", "Time", colnames(data)))
+setnames(data, gsub("mean\\(\\)", "Mean", colnames(data)))
+setnames(data, gsub("std\\(\\)", "StandardDeviation", colnames(data)))
 
 
-# Take the mean of each column, besides our appended subject & activity
-# Prepare
-activities <- levels(meanstd$activity)
-subjects <- unique(meanstd$subject)
-target_columns <- names(meanstd)[!(names(meanstd) %in% c('subject', 'activity'))]
-# Prepare lengths
-activity_length <- length(activities)
-subject_length <- length(subjects)
-targets_length <- length(target_columns)
-# Prepare blank 3D array
-arr <- array(NaN, c(activity_length, subject_length, targets_length))
-# Fill the array; scope from activity -> measured -> subject ID
-for(i in 1:activity_length){
-  for(j in 1:subject_length){
-    for(k in 1:targets_length) {
-      arr[i, j, k] <-  mean(meanstd[,target_columns[k]][meanstd$activity==activities[i] &
-                                                        meanstd$subject==subjects[j]])
-    }
-  }
-}
+# Take the mean of each variable, by subject and by activity (separately)
+tidy = data[, lapply(.SD, mean), by=c('Activity', 'Subject')]
 
-
-# Convert 3D array to a data frame
-tidy_frame <- as.data.frame(arr, responseName = 'Average')
+# Return to our previous directory
+setwd('..')
 
 # Output resulting data as a *.txt file
-write.table(x = tidy_frame, file = 'HAR_tidy.txt', row.name = FALSE)
+write.table(x = tidy, file = 'HAR_tidy.txt', row.name = FALSE)
+

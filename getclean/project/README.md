@@ -3,25 +3,38 @@
 Provided for "Getting & Cleaning Data", course 3 in the Data Science
 Specialization in Coursera
 
-Assuming 1) Your working directory is within the unzipped sample data provided on the course project page, you should be capable of running
-`source('run_analysis.R')` to set the script in motion.
+### Assumptions:
+* Your working directory contains `run_analysis.R` and `UCI HAR Dataset/`
+* You have R 3.1.2 installed
+* You have `dplyr`, `tidyr`, and `data.table` packages installed
 
-__Important!__:
-I may be walking a path-less traveled here (i.e., wrong), but I decided to interpet:
+### Output:
+* A `HAR_tidy.txt` file, containing the mean values of each observed variable
+by subject AND by activity. Thus, you have 180 rows describing the means of
+Subject 4 doing *something*. Else, we'd need to create two separate tables, or
+insert a *lot* of NAs.
 
-> the average of each variable for each activity and each subject.
+### Naming
+Variable names were taken from the original data and spruced up a bit. 
+Here's a legend for some of the abbreviations:
+* Acc = Acceleration
+* Gyro = Gyroscope
+* Time = Time domain signals
+* Frequency = Frequency domain signals
+* X, Y, Z = Direction of movement in the 3-axial plane.
 
-to mean the average of each measured mean & std deviation column
-*by* type of activity *by* subject. You end up getting a 3-dimensional
-array, which I then output as as a data frame. I expect this to be a
-non-typical response, but what the hell, it was more fun.
+### run_analysis.R
 
-__Input__:
-* All necessary training and test data
+The script first merges the observation data, found under
+`{test,train}/X_{test,train}.txt` using `rbind`. Observation variables names
+are attached, duplicate columns are removed, and columns relating to the mean 
+or standard deviation are selected for. 
 
-__Output__:
-* A 'HAR_tidy.txt' file, containing the 3D array translated into a
-data frame (using, appropriately, `as.data.frame`). This comes out as
-a 6 x (30*79) data frame, where x = the 6 activities, and the average
-variable results by subject are "flattened" and appended one after
-the other. Interesting, no?
+The six types of activities are loaded (WALKING, SITTING, STAIRS, etc.) and
+joined with their raw IDs. The selected mean|std data, activity, and subject
+data are all bound (`cbind`).  
+
+Column name improvment is carried out via `gsub`. 
+
+The data is tidied by taking the mean of each variable by activity and subject. 
+Finally, the tidied data is written to `HAR_tidy.txt` in the working directory.
